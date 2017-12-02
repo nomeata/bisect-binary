@@ -137,12 +137,14 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
             liftIO $ BS.writeFile outputFP $ setZeros input (conservative digest)
             outputStrLn $ printf "Reverted %s to last known good output." outputFP
 
-        runCommand = liftIO $ traverse_ callCommand commandM
+        run_cmd = liftIO $ for_ commandM $ \cmd -> do
+            ph <- spawnCommand cmd
+            waitForProcess ph
 
         -- A single run
         test zeros = do
             liftIO $ BS.writeFile outputFP $ setZeros input zeros
-            runCommand
+            run_cmd
 
         ask log msg = fix $ \loop -> do
             getInputChar msg >>= pure . fmap toUpper >>= \case
@@ -154,23 +156,30 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
                     revert (digestLog log)
                     liftIO $ exitSuccess
                 Just 'R' -> do
-                    runCommand
+                    run_cmd
                     loop
+                Just 'U' -> do
+                    let log' = log { lgLogs = init (lgLogs log) }
+                    steps log'
+                    -- code smell
+                    liftIO $ exitSuccess
                 Just '?' -> do
-                    outputStrLn "Keys: Y: good. N: bad. R: rerun command. Q: Quit"
+                    outputStrLn "Keys: Y: good. N: bad. R: rerun command. U: Undo. Q: Quit"
                     loop
                 _ -> loop
 
         statusText :: MonadIO m => Intervals -> Intervals -> Bool -> m String
         statusText conservative toTry done = liftIO $ do
             w <- getWidth
-            let barw = w - 5 -2 -6 -2 -5 -1 -10 -2 -9 -2 -3
+            let barw = w - 57
             let zeroPerc = 100 * fromIntegral (size conservative) / fromIntegral len
             let nonZeroBytes = len - size conservative
-            return $ printf "%4.1f%%  zeroes  %5d bytes left  %s%s"
-                (zeroPerc :: Double) nonZeroBytes
+            return $ printf "%4.1f%% zeroes  %12s  %7dB left  %s%s"
+                (zeroPerc :: Double)
+                (if done then "" else printf "%7dB new" (size toTry))
+                nonZeroBytes
                 (if barw > 5 then braille barw len conservative toTry else "")
-                (if done then "" else " [YNRQX?] ")
+                (if done then "" else " [YNRUQ?] ")
 
 
         -- Single step of the main loop
@@ -189,8 +198,8 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
             digest = digestLog log
 
         -- Main loop
-        steps log todo = do
-            foldM_ step log todo
+        steps log = do
+            foldM_ step log (intervalsToTry len)
             outputStrLn $ printf "Done!"
             -- TODO: What now?
 
@@ -210,7 +219,7 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
                     outputStrLn $ printf "Loading log file %s." logFile
                     checkLog log input
 
-    steps initialLog (intervalsToTry len)
+    steps initialLog
 
 -- Argument handling
 
