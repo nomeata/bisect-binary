@@ -163,8 +163,13 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
                     steps log'
                     -- code smell
                     liftIO $ exitSuccess
+                Just 'F' -> do
+                    let log' = log { lgLogs = filter leOk (lgLogs log) }
+                    steps log'
+                    -- code smell
+                    liftIO $ exitSuccess
                 Just '?' -> do
-                    outputStrLn "Keys: Y: good. N: bad. R: rerun command. U: Undo. Q: Quit"
+                    outputStrLn "Keys: Y: good. N: bad. R: rerun command. U: Undo. F: Forget negatives Q: Quit"
                     loop
                 _ -> loop
 
@@ -179,7 +184,7 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
                 (if done then "" else printf "%7dB new" (size toTry))
                 nonZeroBytes
                 (if barw > 5 then braille barw len conservative toTry else "")
-                (if done then "" else " [YNRUQ?] ")
+                (if done then "" else " [YNRUFQ?] ")
 
 
         -- Single step of the main loop
@@ -197,10 +202,31 @@ work inputFP outputFP commandM = runInputT defaultSettings $ do
           where
             digest = digestLog log
 
+        lastStep :: Log -> InputT IO ()
+        lastStep log = fix $ \loop -> do
+            getInputChar "Done! [UFQ?]" >>= pure . fmap toUpper >>= \case
+                Just 'Q' -> do
+                    revert (digestLog log)
+                    liftIO $ exitSuccess
+                Just 'U' -> do
+                    let log' = log { lgLogs = init (lgLogs log) }
+                    steps log'
+                    -- code smell
+                    liftIO $ exitSuccess
+                Just 'F' -> do
+                    let log' = log { lgLogs = filter leOk (lgLogs log) }
+                    steps log'
+                    -- code smell
+                    liftIO $ exitSuccess
+                Just '?' -> do
+                    outputStrLn "Keys: U: Undo. F: Forget negatives Q: Quit"
+                    loop
+                _ -> loop
+
         -- Main loop
         steps log = do
-            foldM_ step log (intervalsToTry len)
-            outputStrLn $ printf "Done!"
+            log' <- foldM step log (intervalsToTry len)
+            lastStep log'
             -- TODO: What now?
 
 
