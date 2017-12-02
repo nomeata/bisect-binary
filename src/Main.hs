@@ -227,7 +227,7 @@ main :: IO ()
 main = join . customExecParser (prefs showHelpOnError) $
   info (helper <*> parser)
   (  fullDesc
-  <> header "Binary file bissector"
+  <> header "Binary file bisector"
   <> progDesc "Fills a file with as much zeroes as possible"
   )
   where

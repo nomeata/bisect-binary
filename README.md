@@ -56,7 +56,7 @@ microcontroller with the binary):
 
 ```
 $ bisect-binary --help
-Binary file bissector
+Binary file bisector
 
 Usage: bisect-binary (-i|--input FILE) (-o|--output FILE) [-c|--command COMMAND]
   Fills a file with as much zeroes as possible
