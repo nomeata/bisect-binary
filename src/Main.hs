@@ -5,6 +5,7 @@ import Text.Printf
 import System.Directory
 import System.Exit
 import System.FilePath
+import Data.Foldable
 import Data.List hiding (union, intersect)
 import Options.Applicative
 import Control.Monad
@@ -20,6 +21,7 @@ import Data.Time
 import Data.Hashable
 import Math.NumberTheory.Logarithms
 import Data.Char
+import System.Process
 import Prelude hiding (subtract)
 import qualified System.Console.Terminal.Size
 
@@ -120,7 +122,7 @@ pointless try digest =
 -- The main code
 
 work :: FilePath -> FilePath -> Maybe String -> IO ()
-work inputFP outputFP _commandM = runInputT defaultSettings $ do
+work inputFP outputFP commandM = runInputT defaultSettings $ do
     input <- liftIO $ BS.readFile inputFP
     let len = BS.length input
 
@@ -135,10 +137,12 @@ work inputFP outputFP _commandM = runInputT defaultSettings $ do
             liftIO $ BS.writeFile outputFP $ setZeros input (conservative digest)
             outputStrLn $ printf "Reverted %s to last known good output." outputFP
 
+        runCommand = liftIO $ traverse_ callCommand commandM
+
         -- A single run
         test zeros = do
             liftIO $ BS.writeFile outputFP $ setZeros input zeros
-            -- Run command here
+            runCommand
 
         ask log msg = fix $ \loop -> do
             getInputChar msg >>= pure . fmap toUpper >>= \case
@@ -149,6 +153,9 @@ work inputFP outputFP _commandM = runInputT defaultSettings $ do
                 Just 'Q' -> do
                     revert (digestLog log)
                     liftIO $ exitSuccess
+                Just 'R' -> do
+                    runCommand
+                    loop
                 Just '?' -> do
                     outputStrLn "Keys: Y: good. N: bad. R: rerun command. Q: Quit"
                     loop
@@ -174,7 +181,7 @@ work inputFP outputFP _commandM = runInputT defaultSettings $ do
                 test zeros
                 result <- statusText (conservative digest) toTry False >>= ask log
                 stamp <- liftIO $ getZonedTime
-                let entry = LogEntry stamp result zeros
+                let entry = LogEntry { leDate = stamp, leOk = result, leZeroed = zeros }
                 let log' = log { lgLogs = lgLogs log ++ [entry] }
                 liftIO $ encodeFile logFile log'
                 return $ log'
