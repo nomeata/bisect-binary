@@ -10,7 +10,7 @@ file is big. One approach to help you in the process is to erase parts of the fi
 should be doing. If it does, then you know that the interesting parts are in
 another part of the file.
 
-`binary-binary` assists in this process by doing the book-keeping and zeroing
+`bisect-binary` assists in this process by doing the book-keeping and zeroing
 out parts of the file.
 
 
