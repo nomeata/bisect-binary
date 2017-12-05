@@ -1,5 +1,16 @@
 {-# LANGUAGE LambdaCase, DeriveGeneric #-}
 
+-- |
+-- This module provides an (efficient?) (compact?) representation of sets of
+-- file offsets, together with a few basic operations.
+--
+-- The representation is a sorted list of disjoint, non-adjacent intervals.
+--
+-- The operations 'isEmpty', 'fullIntervals', 'nullInterval', 'subSetOf',
+-- 'union', 'intersection' and 'subtract' were formally proven correct using
+-- @hs-to-coq@:
+-- <https://github.com/antalsz/hs-to-coq/tree/20f8eced04e51289d81ce117861c82c2ea24c4df/examples/intervals>
+-- (Three bugs were found in the process.)
 module Intervals where
 
 import qualified Data.ByteString.Lazy as BS
@@ -52,9 +63,11 @@ intersect (Intervals is1) (Intervals is2) = Intervals $ go is1 is2
         | to i1 < to i2 = go (i2:is2) (i1:is1)
         -- disjoint
         | from i1 >= to i2 = go (i1:is1) is2
+        -- subset
+        | to i1 == to i2 = I f' (to i2) : go is1 is2
         -- overlapping
         | otherwise = I f' (to i2) : go (i1 { from = to i2} : is1) is2
-            where f' = max (from i1) (from i2)
+      where f' = max (from i1) (from i2)
 
 
 union :: Intervals -> Intervals -> Intervals
@@ -69,7 +82,7 @@ union (Intervals is1) (Intervals is2) = Intervals $ go is1 is2
         | from i1 > to i2 = i2 : go (i1:is1) is2
         -- overlapping
         | otherwise  = go (i1 { from = f'} : is1) is2
-            where f' = min (from i1) (from i2)
+      where f' = min (from i1) (from i2)
 
 subtract :: Intervals -> Intervals -> Intervals
 subtract (Intervals is1) (Intervals is2) = Intervals $ go is1 is2
@@ -84,12 +97,12 @@ subtract (Intervals is1) (Intervals is2) = Intervals $ go is1 is2
         -- i1 contained in i2
         | from i2 <= from i1 , to i1 <= to i2 = go is1 (i2:is2)
         -- i2 covers beginning of i1
-        | from i1 >= from i2 = i1 { from = to i2} : go is1 is2
+        | from i1 >= from i2 = go (i1 { from = to i2} : is1) is2
         -- i2 covers end of i1
         | to i1 <= to i2     = i1 { to = from i2} : go is1 (i2:is2)
         -- i2 in the middle of i1
         | otherwise = I (from i1) (from i2) :
-                      I (to i2)   (to i1) : go is1 is2
+                      go (I (to i2) (to i1) : is1) is2
 
 
 setZeros :: BS.ByteString -> Intervals -> BS.ByteString

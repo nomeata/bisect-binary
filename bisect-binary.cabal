@@ -1,5 +1,5 @@
 name:                bisect-binary
-version:             0.1
+version:             0.1.0.1
 synopsis:            Determine relevant parts of binary data
 description:
      This little program helps with the following task:
